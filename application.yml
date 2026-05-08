@@ -1,0 +1,47 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: api-gateway
+  cloud:
+    gateway:
+      httpclient:
+        connect-timeout: 5000
+        response-timeout: 30s # Increase for video uploads
+      routes:
+        # User Authentication & Registration
+        - id: user-catalog-route
+          uri: lb://user-catalog-service
+          predicates:
+            - Path=/v1/auth/**
+          filters:
+            - RewritePath=/v1/auth/(?<path>.*), /api/users/${path}
+            - AddRequestHeader=X-Ghost-Shield-Key, PermanentSecret999
+            # Production add-on: Prevents IP spoofing
+            - PreserveHostHeader
+
+        # Encrypted Media Storage
+        - id: media-vault-route
+          uri: lb://BLOB
+          predicates:
+            - Path=/v1/vault/**
+          filters:
+            - RewritePath=/v1/vault/(?<path>.*), /api/vault/${path}
+            - AddRequestHeader=X-Ghost-Shield-Key, PermanentSecret999 # Updated to match your handshake
+
+  servlet:
+    multipart:
+      max-file-size: 100MB
+      max-request-size: 100MB
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: gateway
