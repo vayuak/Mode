@@ -92,4 +92,4 @@ logging:
 
 ghost:
   shield:
-    jwt-secret: ${JWT_SECRET:SuperSecurePermanentSecretKeyThatIsAtLeast64BytesLongForSecurityGuarantees}
+    jwt-secret: ${JWT_SECRET}
