@@ -1,5 +1,5 @@
 server:
-  port: 8080
+  port: ${PORT:8080}
 
 spring:
   application:
@@ -37,7 +37,7 @@ spring:
             - SetRequestHeader=X-Gateway-Secret, ${GATEWAY_SECRET:CryptographicGhostShieldInternalTokenSignature7350_465}
 
         # ========================================================
-        # 📁 ENCRYPTED MULTI-MEDIA SECURE VAULT (FIXED ROUTE)
+        # 📁 ENCRYPTED MULTI-MEDIA SECURE VAULT
         # ========================================================
         - id: media-vault-route
           uri: ${BLOB_URL}
@@ -61,20 +61,19 @@ spring:
             - SetRequestHeader=X-Gateway-Secret, ${GATEWAY_SECRET:CryptographicGhostShieldInternalTokenSignature7350_465}
 
         # ========================================================
-        # 📦 STANDARD REST AREA RADAR SERVICES
+        # 📦 STANDARD COMMUNITIES & SOCIAL SERVICE
         # ========================================================
         - id: social-service-route
           uri: ${SOCIAL_SERVICE_URL}
           predicates:
             - Path=/v1/social/**
           filters:
-            - JwtAuthenticationFilter
             - RewritePath=/v1/social/(?<segment>.*), /api/social/${segment}
             - SetRequestHeader=X-Ghost-Shield-Key, ${GHOST_SHIELD_KEY:PermanentSecret999}
             - SetRequestHeader=X-Gateway-Secret, ${GATEWAY_SECRET:CryptographicGhostShieldInternalTokenSignature7350_465}
 
 # ========================================================
-# 🚫 SERVICE REGISTRY DISABLED
+# 🚫 EUREKA SERVICE REGISTRY DISABLED
 # ========================================================
 eureka:
   client:
@@ -89,4 +88,4 @@ logging:
 
 ghost:
   shield:
-    jwt-secret: ${JWT_SECRET}
+    jwt-secret: ${JWT_SECRET:SuperSecurePermanentSecretKeyThatIsAtLeast64BytesLongForSecurityGuarantees}
