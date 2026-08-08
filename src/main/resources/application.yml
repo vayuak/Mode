@@ -23,7 +23,7 @@ spring:
               - Content-Length
               - Content-Type
       routes:
-        # ========================================================
+       # ========================================================
         # 👤 USER CATALOG AUTHORIZATION EDGE GATE
         # ========================================================
         - id: user-catalog-route
@@ -31,7 +31,7 @@ spring:
           predicates:
             - Path=/v1/auth/**
           filters:
-            - RewritePath=/v1/auth/(?<segment>.*), /api/v1/auth/${segment}
+            - RewritePath=/v1/auth/(?<segment>.*), /api/users/${segment}
             - SetRequestHeader=X-Ghost-Shield-Key, ${GHOST_SHIELD_KEY:PermanentSecret999}
             - SetRequestHeader=X-Gateway-Secret, ${GATEWAY_SECRET:CryptographicGhostShieldInternalTokenSignature7350_465}
         # ========================================================
