@@ -3,45 +3,93 @@ server:
 
 spring:
   application:
-    name: api-gateway
+    name: API-GATEWAY
   cloud:
+    loadbalancer:
+      eager-load:
+        clients: [USER-CATALOG-SERVICE, SOCIAL-SERVICE, BLOB, P2P-SERVICE]
     gateway:
-      httpclient:
-        connect-timeout: 5000
-        response-timeout: 30s # Increase for video uploads
+      default-filters:
+        - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_UNIQUE
+      globalcors:
+        add-to-simple-url-handler-mapping: true
+        cors-configurations:
+          '[/**]':
+            allowedOriginPatterns: "*"
+            allowedMethods: "*"
+            allowedHeaders: "*"
+            allowCredentials: true
+            exposedHeaders:
+              - Authorization
+              - X-Gateway-Secret
+              - X-Ghost-Shield-Key
+              - Content-Length
+              - Content-Type
       routes:
-        # User Authentication & Registration
+        # ========================================================
+        # 👤 USER CATALOG AUTHORIZATION EDGE GATE
+        # ========================================================
         - id: user-catalog-route
-          uri: lb://user-catalog-service
+          uri: lb://USER-CATALOG-SERVICE
           predicates:
             - Path=/v1/auth/**
           filters:
-            - RewritePath=/v1/auth/(?<path>.*), /api/users/${path}
-            - AddRequestHeader=X-Ghost-Shield-Key, PermanentSecret999
-            # Production add-on: Prevents IP spoofing
-            - PreserveHostHeader
+            - StripPrefix=2
+            - PrefixPath=/api/users
+            - SetRequestHeader=X-Ghost-Shield-Key, ${GHOST_SHIELD_KEY:PermanentSecret999}
+            - SetRequestHeader=X-Gateway-Secret, ${GATEWAY_SECRET:CryptographicGhostShieldInternalTokenSignature7350_465}
 
-        # Encrypted Media Storage
+        # ========================================================
+        # 📁 ENCRYPTED MULTI-MEDIA SECURE VAULT (FIXED ROUTE)
+        # ========================================================
         - id: media-vault-route
           uri: lb://BLOB
           predicates:
             - Path=/v1/vault/**
           filters:
-            - RewritePath=/v1/vault/(?<path>.*), /api/vault/${path}
-            - AddRequestHeader=X-Ghost-Shield-Key, PermanentSecret999 # Updated to match your handshake
+            # 🟢 FIX: Cleanly rewrites /v1/vault/stream/xyz -> /api/vault/stream/xyz
+            - RewritePath=/v1/vault/(?<segment>.*), /api/vault/${segment}
+            - SetRequestHeader=X-Ghost-Shield-Key, ${GHOST_SHIELD_KEY:PermanentSecret999}
+            - SetRequestHeader=X-Gateway-Secret, ${GATEWAY_SECRET:CryptographicGhostShieldInternalTokenSignature7350_465}
 
-  servlet:
-    multipart:
-      max-file-size: 100MB
-      max-request-size: 100MB
+        # ========================================================
+        # 🛡️ P2P STOMP WEBSOCKET CRYPTO STREAM BROKER
+        # ========================================================
+        - id: social-websocket-route
+          uri: lb:ws://P2P-SERVICE
+          predicates:
+            - Path=/v1/ws/**
+          filters:
+            - StripPrefix=2
+            - SetRequestHeader=X-Ghost-Shield-Key, ${GHOST_SHIELD_KEY:PermanentSecret999}
+            - SetRequestHeader=X-Gateway-Secret, ${GATEWAY_SECRET:CryptographicGhostShieldInternalTokenSignature7350_465}
+
+        # ========================================================
+        # 📦 STANDARD REST AREA RADAR SERVICES
+        # ========================================================
+        - id: social-service-route
+          uri: lb://SOCIAL-SERVICE
+          predicates:
+            - Path=/v1/social/**
+          filters:
+            - JwtAuthenticationFilter
+            - RewritePath=/v1/social/(?<segment>.*), /api/social/${segment}
+            - SetRequestHeader=X-Ghost-Shield-Key, ${GHOST_SHIELD_KEY:PermanentSecret999}
+            - SetRequestHeader=X-Gateway-Secret, ${GATEWAY_SECRET:CryptographicGhostShieldInternalTokenSignature7350_465}
 
 eureka:
   client:
+    registry-fetch-interval-seconds: 5
     service-url:
       defaultZone: http://localhost:8761/eureka/
+  instance:
+    prefer-ip-address: true
 
-management:
-  endpoints:
-    web:
-      exposure:
-        include: gateway
+logging:
+  level:
+    org.springframework.cloud.gateway: TRACE
+    org.springframework.http.server.reactive: DEBUG
+
+ghost:
+  shield:
+    jwt-secret: ${JWT_SECRET:SuperSecurePermanentSecretKeyThatIsAtLeast64BytesLongForSecurityGuarantees}
