@@ -5,9 +5,6 @@ spring:
   application:
     name: API-GATEWAY
   cloud:
-    loadbalancer:
-      eager-load:
-        clients: [USER-CATALOG-SERVICE, SOCIAL-SERVICE, BLOB, P2P-SERVICE]
     gateway:
       default-filters:
         - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_UNIQUE
@@ -30,7 +27,7 @@ spring:
         # 👤 USER CATALOG AUTHORIZATION EDGE GATE
         # ========================================================
         - id: user-catalog-route
-          uri: lb://USER-CATALOG-SERVICE
+          uri: ${USER_CATALOG_URL}
           predicates:
             - Path=/v1/auth/**
           filters:
@@ -43,11 +40,10 @@ spring:
         # 📁 ENCRYPTED MULTI-MEDIA SECURE VAULT (FIXED ROUTE)
         # ========================================================
         - id: media-vault-route
-          uri: lb://BLOB
+          uri: ${BLOB_URL}
           predicates:
             - Path=/v1/vault/**
           filters:
-            # 🟢 FIX: Cleanly rewrites /v1/vault/stream/xyz -> /api/vault/stream/xyz
             - RewritePath=/v1/vault/(?<segment>.*), /api/vault/${segment}
             - SetRequestHeader=X-Ghost-Shield-Key, ${GHOST_SHIELD_KEY:PermanentSecret999}
             - SetRequestHeader=X-Gateway-Secret, ${GATEWAY_SECRET:CryptographicGhostShieldInternalTokenSignature7350_465}
@@ -56,7 +52,7 @@ spring:
         # 🛡️ P2P STOMP WEBSOCKET CRYPTO STREAM BROKER
         # ========================================================
         - id: social-websocket-route
-          uri: lb:ws://P2P-SERVICE
+          uri: ${P2P_URL}
           predicates:
             - Path=/v1/ws/**
           filters:
@@ -68,7 +64,7 @@ spring:
         # 📦 STANDARD REST AREA RADAR SERVICES
         # ========================================================
         - id: social-service-route
-          uri: lb://SOCIAL-SERVICE
+          uri: ${SOCIAL_SERVICE_URL}
           predicates:
             - Path=/v1/social/**
           filters:
@@ -77,13 +73,14 @@ spring:
             - SetRequestHeader=X-Ghost-Shield-Key, ${GHOST_SHIELD_KEY:PermanentSecret999}
             - SetRequestHeader=X-Gateway-Secret, ${GATEWAY_SECRET:CryptographicGhostShieldInternalTokenSignature7350_465}
 
+# ========================================================
+# 🚫 SERVICE REGISTRY DISABLED
+# ========================================================
 eureka:
   client:
-    registry-fetch-interval-seconds: 5
-    service-url:
-      defaultZone: http://localhost:8761/eureka/
-  instance:
-    prefer-ip-address: true
+    enabled: false
+    register-with-eureka: false
+    fetch-registry: false
 
 logging:
   level:
