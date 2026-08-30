@@ -64,10 +64,11 @@ spring:
         # 🔗 P2P HTTP REST BROKER (SYNC & PROFILES)
         # ========================================================
         - id: p2p-http-route
-          uri: ${P2P_HTTP_URL:https://p2p-service-production-cb94.up.railway.app}
+          uri: ${P2P_HTTP_URL}
           predicates:
             - Path=/v1/p2p/**
           filters:
+            - JwtAuthenticationFilter
             - SetRequestHeader=X-Ghost-Shield-Key, ${GHOST_SHIELD_KEY:PermanentSecret999}
             - SetRequestHeader=X-Gateway-Secret, ${GATEWAY_SECRET:CryptographicGhostShieldInternalTokenSignature7350_465}
 
