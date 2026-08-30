@@ -85,6 +85,18 @@ spring:
             - SetRequestHeader=X-Ghost-Shield-Key, ${GHOST_SHIELD_KEY:PermanentSecret999}
             - SetRequestHeader=X-Gateway-Secret, ${GATEWAY_SECRET:CryptographicGhostShieldInternalTokenSignature7350_465}
 
+        # ========================================================
+        # 📡 AIRDROP NEARBY CAMPFIRE RADAR MICROSERVICE
+        # ========================================================
+        - id: campfire-radar-route
+          uri: ${CAMPFIRE_SERVICE_URL}
+          predicates:
+            - Path=/v1/campfire/**
+          filters:
+            - JwtAuthenticationFilter
+            - SetRequestHeader=X-Ghost-Shield-Key, ${GHOST_SHIELD_KEY:PermanentSecret999}
+            - SetRequestHeader=X-Gateway-Secret, ${GATEWAY_SECRET:CryptographicGhostShieldInternalTokenSignature7350_465}
+
 # ========================================================
 # 🚫 SERVICE REGISTRY DISABLED
 # ========================================================
