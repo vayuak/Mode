@@ -33,8 +33,8 @@ spring:
           filters:
             - StripPrefix=2
             - PrefixPath=/api/users
-            - SetRequestHeader=X-Ghost-Shield-Key, ${GHOST_SHIELD_KEY:PermanentSecret999}
-            - SetRequestHeader=X-Gateway-Secret, ${GATEWAY_SECRET:CryptographicGhostShieldInternalTokenSignature7350_465}
+            - SetRequestHeader=X-Ghost-Shield-Key, ${GHOST_SHIELD_KEY}
+            - SetRequestHeader=X-Gateway-Secret, ${GATEWAY_SECRET}
 
         # ========================================================
         # 📁 ENCRYPTED MULTI-MEDIA SECURE VAULT (FIXED ROUTE)
@@ -45,8 +45,8 @@ spring:
             - Path=/v1/vault/**
           filters:
             - RewritePath=/v1/vault/(?<segment>.*), /api/vault/${segment}
-            - SetRequestHeader=X-Ghost-Shield-Key, ${GHOST_SHIELD_KEY:PermanentSecret999}
-            - SetRequestHeader=X-Gateway-Secret, ${GATEWAY_SECRET:CryptographicGhostShieldInternalTokenSignature7350_465}
+            - SetRequestHeader=X-Ghost-Shield-Key, ${GHOST_SHIELD_KEY}
+            - SetRequestHeader=X-Gateway-Secret, ${GATEWAY_SECRET}
 
         # ========================================================
         # 🛡️ P2P STOMP WEBSOCKET CRYPTO STREAM BROKER
@@ -57,8 +57,8 @@ spring:
             - Path=/v1/ws/**
           filters:
             - StripPrefix=2
-            - SetRequestHeader=X-Ghost-Shield-Key, ${GHOST_SHIELD_KEY:PermanentSecret999}
-            - SetRequestHeader=X-Gateway-Secret, ${GATEWAY_SECRET:CryptographicGhostShieldInternalTokenSignature7350_465}
+            - SetRequestHeader=X-Ghost-Shield-Key, ${GHOST_SHIELD_KEY}
+            - SetRequestHeader=X-Gateway-Secret, ${GATEWAY_SECRET}
 
         # ========================================================
         # 🔗 P2P HTTP REST BROKER (SYNC & PROFILES)
@@ -69,8 +69,8 @@ spring:
             - Path=/v1/p2p/**
           filters:
             - JwtAuthenticationFilter
-            - SetRequestHeader=X-Ghost-Shield-Key, ${GHOST_SHIELD_KEY:PermanentSecret999}
-            - SetRequestHeader=X-Gateway-Secret, ${GATEWAY_SECRET:CryptographicGhostShieldInternalTokenSignature7350_465}
+            - SetRequestHeader=X-Ghost-Shield-Key, ${GHOST_SHIELD_KEY}
+            - SetRequestHeader=X-Gateway-Secret, ${GATEWAY_SECRET}
 
         # ========================================================
         # 📦 STANDARD REST AREA RADAR SERVICES
@@ -82,8 +82,8 @@ spring:
           filters:
             - JwtAuthenticationFilter
             - RewritePath=/v1/social/(?<segment>.*), /api/social/${segment}
-            - SetRequestHeader=X-Ghost-Shield-Key, ${GHOST_SHIELD_KEY:PermanentSecret999}
-            - SetRequestHeader=X-Gateway-Secret, ${GATEWAY_SECRET:CryptographicGhostShieldInternalTokenSignature7350_465}
+            - SetRequestHeader=X-Ghost-Shield-Key, ${GHOST_SHIELD_KEY}
+            - SetRequestHeader=X-Gateway-Secret, ${GATEWAY_SECRET}
 
         # ========================================================
         # 📡 AIRDROP NEARBY CAMPFIRE RADAR MICROSERVICE
@@ -94,8 +94,8 @@ spring:
             - Path=/v1/campfire/**
           filters:
             - JwtAuthenticationFilter
-            - SetRequestHeader=X-Ghost-Shield-Key, ${GHOST_SHIELD_KEY:PermanentSecret999}
-            - SetRequestHeader=X-Gateway-Secret, ${GATEWAY_SECRET:CryptographicGhostShieldInternalTokenSignature7350_465}
+            - SetRequestHeader=X-Ghost-Shield-Key, ${GHOST_SHIELD_KEY}
+            - SetRequestHeader=X-Gateway-Secret, ${GATEWAY_SECRET}
 
 # ========================================================
 # 🚫 SERVICE REGISTRY DISABLED
