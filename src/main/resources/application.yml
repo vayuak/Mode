@@ -1,9 +1,22 @@
 server:
-  port: 8080
+  port: ${PORT:8080}
+  compression:
+    enabled: true
+    mime-types: application/json,text/html,text/xml,text/plain
+    min-response-size: 1024
 
 spring:
   application:
     name: API-GATEWAY
+
+  # 📥 REDIS: Required for the RequestRateLimiter to track IP addresses
+  data:
+    redis:
+      host: ${SPRING_REDIS_HOST:localhost}
+      port: ${SPRING_REDIS_PORT:6379}
+      password: ${SPRING_REDIS_PASSWORD:}
+      timeout: 3000ms
+
   cloud:
     gateway:
       default-filters:
@@ -27,75 +40,87 @@ spring:
         # 👤 USER CATALOG AUTHORIZATION EDGE GATE
         # ========================================================
         - id: user-catalog-route
-          uri: ${USER_CATALOG_URL}
+          uri: ${USER_CATALOG_URL:http://localhost:8088}
           predicates:
             - Path=/v1/auth/**
           filters:
             - StripPrefix=2
             - PrefixPath=/api/users
-            - SetRequestHeader=X-Ghost-Shield-Key, ${GHOST_SHIELD_KEY}
-            - SetRequestHeader=X-Gateway-Secret, ${GATEWAY_SECRET}
-
-        # ========================================================
-        # 📁 ENCRYPTED MULTI-MEDIA SECURE VAULT (FIXED ROUTE)
-        # ========================================================
-        - id: media-vault-route
-          uri: ${BLOB_URL}
-          predicates:
-            - Path=/v1/vault/**
-          filters:
-            - RewritePath=/v1/vault/(?<segment>.*), /api/vault/${segment}
-            - SetRequestHeader=X-Ghost-Shield-Key, ${GHOST_SHIELD_KEY}
-            - SetRequestHeader=X-Gateway-Secret, ${GATEWAY_SECRET}
-
-        # ========================================================
-        # 🛡️ P2P STOMP WEBSOCKET CRYPTO STREAM BROKER
-        # ========================================================
-        - id: social-websocket-route
-          uri: ${P2P_URL}
-          predicates:
-            - Path=/v1/ws/**
-          filters:
-            - StripPrefix=2
-            - SetRequestHeader=X-Ghost-Shield-Key, ${GHOST_SHIELD_KEY}
-            - SetRequestHeader=X-Gateway-Secret, ${GATEWAY_SECRET}
-
-        # ========================================================
-        # 🔗 P2P HTTP REST BROKER (SYNC & PROFILES)
-        # ========================================================
-        - id: p2p-http-route
-          uri: ${P2P_HTTP_URL}
-          predicates:
-            - Path=/v1/p2p/**
-          filters:
-            - JwtAuthenticationFilter
-            - SetRequestHeader=X-Ghost-Shield-Key, ${GHOST_SHIELD_KEY}
-            - SetRequestHeader=X-Gateway-Secret, ${GATEWAY_SECRET}
-
-        # ========================================================
-        # 📦 STANDARD REST AREA RADAR SERVICES
-        # ========================================================
-        - id: social-service-route
-          uri: ${SOCIAL_SERVICE_URL}
-          predicates:
-            - Path=/v1/social/**
-          filters:
-            - JwtAuthenticationFilter
-            - RewritePath=/v1/social/(?<segment>.*), /api/social/${segment}
-            - SetRequestHeader=X-Ghost-Shield-Key, ${GHOST_SHIELD_KEY}
-            - SetRequestHeader=X-Gateway-Secret, ${GATEWAY_SECRET}
+            - SetRequestHeader=X-Ghost-Shield-Key, ${GHOST_SHIELD_KEY:default_shield_key}
+            - SetRequestHeader=X-Gateway-Secret, ${GATEWAY_SECRET:default_gateway_secret}
+            # 🛡️ RATE LIMIT: Max 5 auth attempts per second to prevent brute-force
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 2
+                redis-rate-limiter.burstCapacity: 5
+                key-resolver: "#{@ipKeyResolver}"
 
         # ========================================================
         # 📡 AIRDROP NEARBY CAMPFIRE RADAR MICROSERVICE
         # ========================================================
         - id: campfire-radar-route
-          uri: ${CAMPFIRE_SERVICE_URL}
+          uri: ${CAMPFIRE_SERVICE_URL:http://localhost:8097}
           predicates:
             - Path=/v1/campfire/**
           filters:
             - JwtAuthenticationFilter
-            - SetRequestHeader=X-Ghost-Shield-Key, ${GHOST_SHIELD_KEY}
-            - SetRequestHeader=X-Gateway-Secret, ${GATEWAY_SECRET}
+            - SetRequestHeader=X-Ghost-Shield-Key, ${GHOST_SHIELD_KEY:default_shield_key}
+            - SetRequestHeader=X-Gateway-Secret, ${GATEWAY_SECRET:default_gateway_secret}
+            # 🛡️ RATE LIMIT: Prevents users from spamming the Radar with location pings
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 5
+                redis-rate-limiter.burstCapacity: 10
+                key-resolver: "#{@ipKeyResolver}"
+
+        # ========================================================
+        # 📁 ENCRYPTED MULTI-MEDIA SECURE VAULT (FIXED ROUTE)
+        # ========================================================
+        - id: media-vault-route
+          uri: ${BLOB_URL:http://localhost:8081}
+          predicates:
+            - Path=/v1/vault/**
+          filters:
+            - RewritePath=/v1/vault/(?<segment>.*), /api/vault/${segment}
+            - SetRequestHeader=X-Ghost-Shield-Key, ${GHOST_SHIELD_KEY:default_shield_key}
+            - SetRequestHeader=X-Gateway-Secret, ${GATEWAY_SECRET:default_gateway_secret}
+
+        # ========================================================
+        # 🛡️ P2P STOMP WEBSOCKET CRYPTO STREAM BROKER
+        # ========================================================
+        - id: social-websocket-route
+          uri: ${P2P_URL:ws://localhost:8096}
+          predicates:
+            - Path=/v1/ws/**
+          filters:
+            - StripPrefix=2
+            - SetRequestHeader=X-Ghost-Shield-Key, ${GHOST_SHIELD_KEY:default_shield_key}
+            - SetRequestHeader=X-Gateway-Secret, ${GATEWAY_SECRET:default_gateway_secret}
+
+        # ========================================================
+        # 🔗 P2P HTTP REST BROKER (SYNC & PROFILES)
+        # ========================================================
+        - id: p2p-http-route
+          uri: ${P2P_HTTP_URL:http://localhost:8096}
+          predicates:
+            - Path=/v1/p2p/**
+          filters:
+            - JwtAuthenticationFilter
+            - SetRequestHeader=X-Ghost-Shield-Key, ${GHOST_SHIELD_KEY:default_shield_key}
+            - SetRequestHeader=X-Gateway-Secret, ${GATEWAY_SECRET:default_gateway_secret}
+
+        # ========================================================
+        # 📦 STANDARD REST AREA RADAR SERVICES (SOCIAL-SERVICE)
+        # ========================================================
+        - id: social-service-route
+          uri: ${SOCIAL_SERVICE_URL:http://localhost:8092}
+          predicates:
+            - Path=/v1/social/**
+          filters:
+            - JwtAuthenticationFilter
+            - RewritePath=/v1/social/(?<segment>.*), /api/social/${segment}
+            - SetRequestHeader=X-Ghost-Shield-Key, ${GHOST_SHIELD_KEY:default_shield_key}
+            - SetRequestHeader=X-Gateway-Secret, ${GATEWAY_SECRET:default_gateway_secret}
 
 # ========================================================
 # 🚫 SERVICE REGISTRY DISABLED
@@ -108,9 +133,10 @@ eureka:
 
 logging:
   level:
-    org.springframework.cloud.gateway: TRACE
-    org.springframework.http.server.reactive: DEBUG
+    org.springframework.cloud.gateway: INFO
+    org.springframework.http.server.reactive: INFO
 
+# Keys used by the JwtAuthenticationFilter
 ghost:
   shield:
-    jwt-secret: ${JWT_SECRET}
+    jwt-secret: ${JWT_SECRET:default_jwt_secret}

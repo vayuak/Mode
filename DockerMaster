@@ -1,0 +1,222 @@
+version: '3.8'
+
+networks:
+  ghostshield-net:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_common_data:
+  redis_airdrop_data:
+  media_vault_data:
+
+services:
+  # ========================================================
+  # 🐘 1. PERSISTENT POSTGRESQL DATABASE (SINGLE INSTANCE)
+  # ========================================================
+  postgres:
+    image: postgres:15-alpine
+    container_name: ghostshield-db
+    restart: always
+    networks:
+      - ghostshield-net
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: FhxTOcsGBKiapugVyTEJetWlqgKMYccx
+      POSTGRES_DB: ghostshield
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  # ========================================================
+  # 🔴 2. COMMON REDIS INSTANCE (AUTH / RATE LIMITING / BLOB)
+  # ========================================================
+  redis-common:
+    image: redis:7-alpine
+    container_name: redis-common
+    restart: always
+    networks:
+      - ghostshield-net
+    ports:
+      - "6379:6379"
+    command: redis-server --requirepass XzvAKsOTzjUVjXNGsGlDjPESCehiHufa
+    volumes:
+      - redis_common_data:/data
+
+  # ========================================================
+  # 🔴 3. AIRDROP / SPHERICAL REDIS INSTANCE (ISOLATED)
+  # ========================================================
+  redis-airdrop:
+    image: redis:7-alpine
+    container_name: redis-airdrop
+    restart: always
+    networks:
+      - ghostshield-net
+    ports:
+      - "6380:6379" # Maps port 6380 on laptop to 6379 inside container
+    command: redis-server --requirepass hYsnITLYlyoeCwJhJGTDtaShpkjfETQK
+    volumes:
+      - redis_airdrop_data:/data
+
+  # ========================================================
+  # 🚪 4. API GATEWAY (MODE SERVICE)
+  # ========================================================
+  api-gateway:
+    build: ./mode-gateway # Path to Mode Gateway folder
+    container_name: api-gateway
+    restart: always
+    networks:
+      - ghostshield-net
+    ports:
+      - "8080:8080" # Exposed to Cloudflare Tunnel
+    environment:
+      - PORT=8080
+      - SPRING_REDIS_HOST=redis-common
+      - SPRING_REDIS_PORT=6379
+      - SPRING_REDIS_PASSWORD=XzvAKsOTzjUVjXNGsGlDjPESCehiHufa
+      - USER_CATALOG_URL=http://user-catalog:8088
+      - SOCIAL_SERVICE_URL=http://social-service:8092
+      - BLOB_URL=http://blob-service:8081
+      - CAMPFIRE_SERVICE_URL=http://spherical-service:8097
+      - P2P_HTTP_URL=http://p2p-service:8096
+      - P2P_URL=ws://p2p-service:8096
+      - GHOST_SHIELD_KEY=gsk_live_8f7b2c9a4e1d5f6e8a0b3c2d1e4f5a6b7c8d9e0f1a2b3c4d5
+      - GATEWAY_SECRET=gws_live_4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c
+      - JWT_SECRET=jwt_live_9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9
+    depends_on:
+      - redis-common
+
+  # ========================================================
+  # 👤 5. USER CATALOG SERVICE (AUTH / ACCOUNTS)
+  # ========================================================
+  user-catalog:
+    build: ./user-catalog-service
+    container_name: user-catalog
+    restart: always
+    networks:
+      - ghostshield-net
+    environment:
+      - PORT=8088
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/ghostshield
+      - SPRING_DATASOURCE_USERNAME=postgres
+      - SPRING_DATASOURCE_PASSWORD=FhxTOcsGBKiapugVyTEJetWlqgKMYccx
+      - SPRING_REDIS_HOST=redis-common
+      - SPRING_REDIS_PORT=6379
+      - SPRING_REDIS_PASSWORD=XzvAKsOTzjUVjXNGsGlDjPESCehiHufa
+      - GHOST_SHIELD_KEY=gsk_live_8f7b2c9a4e1d5f6e8a0b3c2d1e4f5a6b7c8d9e0f1a2b3c4d5
+      - GHOST_GATEWAY_SECRET=gws_live_4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c
+      - JWT_SECRET=jwt_live_9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9
+      - RESEND_API_KEY=re_CX11XQdr_KeuDQoEzgC3Q5Bj5R4E3kh78
+    depends_on:
+      - postgres
+      - redis-common
+
+  # ========================================================
+  # 💬 6. P2P CHAT SERVICE (STOMP WEBSOCKETS)
+  # ========================================================
+  p2p-service:
+    build: ./p2p-service
+    container_name: p2p-service
+    restart: always
+    networks:
+      - ghostshield-net
+    environment:
+      - PORT=8096
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/ghostshield
+      - SPRING_DATASOURCE_USERNAME=postgres
+      - SPRING_DATASOURCE_PASSWORD=FhxTOcsGBKiapugVyTEJetWlqgKMYccx
+      - USER_CATALOG_SERVICE_NAME=USER-CATALOG-SERVICE
+      - USER_CATALOG_URL=http://user-catalog:8088
+      - GHOST_SHIELD_KEY=gsk_live_8f7b2c9a4e1d5f6e8a0b3c2d1e4f5a6b7c8d9e0f1a2b3c4d5
+      - GHOST_GATEWAY_SECRET=gws_live_4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c
+      - GHOST_SHIELD_JWT_SECRET=jwt_live_9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9
+    depends_on:
+      - postgres
+      - user-catalog
+
+  # ========================================================
+  # 🏘️ 7. SOCIAL / COMMUNITIES SERVICE
+  # ========================================================
+  social-service:
+    build: ./social-service
+    container_name: social-service
+    restart: always
+    networks:
+      - ghostshield-net
+    environment:
+      - PORT=8092
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/ghostshield
+      - SPRING_DATASOURCE_USERNAME=postgres
+      - SPRING_DATASOURCE_PASSWORD=FhxTOcsGBKiapugVyTEJetWlqgKMYccx
+      - SPRING_REDIS_HOST=redis-common
+      - SPRING_REDIS_PORT=6379
+      - SPRING_REDIS_PASSWORD=XzvAKsOTzjUVjXNGsGlDjPESCehiHufa
+      - USER_CATALOG_SERVICE_NAME=USER-CATALOG-SERVICE
+      - USER_CATALOG_SERVICE_URL=http://user-catalog:8088
+      - BLOB_SERVICE_NAME=BLOB
+      - BLOB_SERVICE_URL=http://blob-service:8081
+      - P2P_URL=ws://p2p-service:8096
+      - GHOST_SHIELD_KEY=gsk_live_8f7b2c9a4e1d5f6e8a0b3c2d1e4f5a6b7c8d9e0f1a2b3c4d5
+      - GHOST_GATEWAY_SECRET=gws_live_4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c
+      - JWT_SECRET=jwt_live_9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9
+    depends_on:
+      - postgres
+      - redis-common
+      - user-catalog
+
+  # ========================================================
+  # 📁 8. BLOB VAULT SERVICE (MEDIA STORAGE)
+  # ========================================================
+  blob-service:
+    build: ./blob-service
+    container_name: blob-service
+    restart: always
+    networks:
+      - ghostshield-net
+    environment:
+      - PORT=8081
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/ghostshield
+      - SPRING_DATASOURCE_USERNAME=postgres
+      - SPRING_DATASOURCE_PASSWORD=FhxTOcsGBKiapugVyTEJetWlqgKMYccx
+      - SPRING_REDIS_HOST=redis-common
+      - SPRING_REDIS_PORT=6379
+      - SPRING_REDIS_PASSWORD=XzvAKsOTzjUVjXNGsGlDjPESCehiHufa
+      - USER_CATALOG_SERVICE_NAME=USER-CATALOG-SERVICE
+      - USER_CATALOG_URL=http://user-catalog:8088
+      - GHOST_SHIELD_KEY=gsk_live_8f7b2c9a4e1d5f6e8a0b3c2d1e4f5a6b7c8d9e0f1a2b3c4d5
+      - GHOST_GATEWAY_SECRET=gws_live_4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c
+      - JWT_SECRET=jwt_live_9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9
+    volumes:
+      - media_vault_data:/app/uploads
+    depends_on:
+      - postgres
+      - redis-common
+
+  # ========================================================
+  # 📡 9. SPHERICAL / AIRDROP CAMPFIRE RADAR SERVICE
+  # ========================================================
+  spherical-service:
+    build: ./spherical-service
+    container_name: spherical-service
+    restart: always
+    networks:
+      - ghostshield-net
+    environment:
+      - PORT=8097
+      # 🟢 Uses the second, isolated Redis instance
+      - SPRING_REDIS_HOST=redis-airdrop
+      - SPRING_REDIS_PORT=6379
+      - SPRING_REDIS_PASSWORD=hYsnITLYlyoeCwJhJGTDtaShpkjfETQK
+      - AIRDROP_REDIS_HOST=redis-airdrop
+      - AIRDROP_REDIS_PORT=6379
+      - AIRDROP_REDIS_PASSWORD=hYsnITLYlyoeCwJhJGTDtaShpkjfETQK
+      - USER_CATALOG_SERVICE_NAME=USER-CATALOG-SERVICE
+      - USER_SERVICE_URL=http://user-catalog:8088
+      - GHOST_SHIELD_KEY=gsk_live_8f7b2c9a4e1d5f6e8a0b3c2d1e4f5a6b7c8d9e0f1a2b3c4d5
+      - GHOST_GATEWAY_SECRET=gws_live_4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c
+      - JWT_SECRET=jwt_live_9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9
+      - OPENAI_API_KEY=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
+    depends_on:
+      - redis-airdrop
+      - user-catalog
