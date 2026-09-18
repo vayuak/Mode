@@ -104,10 +104,12 @@ services:
       - SPRING_REDIS_HOST=redis-common
       - SPRING_REDIS_PORT=6379
       - SPRING_REDIS_PASSWORD=XzvAKsOTzjUVjXNGsGlDjPESCehiHufa
+      # 🟢 BREVO SMTP CREDENTIALS
+      - BREVO_LOGIN_EMAIL=adityakakade.skncoe.comp@gmail.com
+      - BREVO_SMTP_KEY=YOUR_BREVO_SMTP_KEY_HERE # 👈 Replace with your xsmtpsib- key from Brevo dashboard
       - GHOST_SHIELD_KEY=gsk_live_8f7b2c9a4e1d5f6e8a0b3c2d1e4f5a6b7c8d9e0f1a2b3c4d5
       - GHOST_GATEWAY_SECRET=gws_live_4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c
       - JWT_SECRET=jwt_live_9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9
-      - RESEND_API_KEY=re_CX11XQdr_KeuDQoEzgC3Q5Bj5R4E3kh78
     depends_on:
       - postgres
       - redis-common
@@ -204,7 +206,6 @@ services:
       - ghostshield-net
     environment:
       - PORT=8097
-      # 🟢 Uses the second, isolated Redis instance
       - SPRING_REDIS_HOST=redis-airdrop
       - SPRING_REDIS_PORT=6379
       - SPRING_REDIS_PASSWORD=hYsnITLYlyoeCwJhJGTDtaShpkjfETQK
