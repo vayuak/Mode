@@ -89,9 +89,8 @@ services:
       - JWT_SECRET=jwt_live_9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9
     depends_on:
       - redis-common
-
   # ========================================================
-  # 👤 USER CATALOG SERVICE (AUTH / ACCOUNTS)
+  # 👤 USER CATALOG SERVICE
   # ========================================================
   user-catalog:
     build: ./user-catalog-service
@@ -108,13 +107,9 @@ services:
       - SPRING_REDIS_PORT=6379
       - SPRING_REDIS_PASSWORD=XzvAKsOTzjUVjXNGsGlDjPESCehiHufa
 
-      # 🟢 1. BREVO CREDENTIALS (Primary Dispatch)
-      - BREVO_LOGIN_EMAIL=adityakakade.skncoe.comp@gmail.com
-      - BREVO_SMTP_KEY='xsmtpsib-YOUR_REAL_BREVO_KEY_HERE'
-
-      # 🟢 2. GMAIL FALLBACK CREDENTIALS (Auto-Fallback)
-      - GMAIL_FALLBACK_USERNAME=your.personal.email@gmail.com
-      - GMAIL_FALLBACK_PASSWORD='abcd efgh ijkl mnop' # Your 16-letter App Password
+      # 🟢 GMAIL CREDENTIALS
+      - GMAIL_USERNAME=your.personal.email@gmail.com
+      - GMAIL_APP_PASSWORD='abcdefghijklmnop' # 16-letter App Password (NO SPACES!)
 
       - GHOST_SHIELD_KEY=gsk_live_8f7b2c9a4e1d5f6e8a0b3c2d1e4f5a6b7c8d9e0f1a2b3c4d5
       - GHOST_GATEWAY_SECRET=gws_live_4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c
