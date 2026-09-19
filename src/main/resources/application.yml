@@ -101,12 +101,6 @@ spring:
             - SetRequestHeader=X-Ghost-Shield-Key, ${GHOST_SHIELD_KEY}
             - SetRequestHeader=X-Gateway-Secret, ${GATEWAY_SECRET}
 
-eureka:
-  client:
-    enabled: false
-    register-with-eureka: false
-    fetch-registry: false
-
 logging:
   level:
     org.springframework.cloud.gateway: INFO

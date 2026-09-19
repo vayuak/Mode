@@ -12,7 +12,7 @@ volumes:
 
 services:
   # ========================================================
-  # 🐘 1. PERSISTENT POSTGRESQL DATABASE (SINGLE INSTANCE)
+  # 🐘 1. PERSISTENT POSTGRESQL DATABASE
   # ========================================================
   postgres:
     image: postgres:15-alpine
@@ -25,9 +25,12 @@ services:
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: FhxTOcsGBKiapugVyTEJetWlqgKMYccx
+      # The default DB is ghostshield; the init script creates the rest
       POSTGRES_DB: ghostshield
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      # 🟢 Automatically runs the SQL script on first boot
+      - ./init-dbs.sql:/docker-entrypoint-initdb.d/init-dbs.sql
 
   # ========================================================
   # 🔴 2. COMMON REDIS INSTANCE (AUTH / RATE LIMITING / BLOB)
@@ -54,7 +57,7 @@ services:
     networks:
       - ghostshield-net
     ports:
-      - "6380:6379" # Maps port 6380 on laptop to 6379 inside container
+      - "6380:6379"
     command: redis-server --requirepass hYsnITLYlyoeCwJhJGTDtaShpkjfETQK
     volumes:
       - redis_airdrop_data:/data
@@ -63,13 +66,13 @@ services:
   # 🚪 4. API GATEWAY (MODE SERVICE)
   # ========================================================
   api-gateway:
-    build: ./mode-gateway # Path to Mode Gateway folder
+    build: ./mode-gateway
     container_name: api-gateway
     restart: always
     networks:
       - ghostshield-net
     ports:
-      - "8080:8080" # Exposed to Cloudflare Tunnel
+      - "8080:8080"
     environment:
       - PORT=8080
       - SPRING_REDIS_HOST=redis-common
@@ -88,7 +91,7 @@ services:
       - redis-common
 
   # ========================================================
-  # 👤 5. USER CATALOG SERVICE (AUTH / ACCOUNTS)
+  # 👤 USER CATALOG SERVICE (AUTH / ACCOUNTS)
   # ========================================================
   user-catalog:
     build: ./user-catalog-service
@@ -98,22 +101,27 @@ services:
       - ghostshield-net
     environment:
       - PORT=8088
-      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/ghostshield
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/user_catalog_db
       - SPRING_DATASOURCE_USERNAME=postgres
       - SPRING_DATASOURCE_PASSWORD=FhxTOcsGBKiapugVyTEJetWlqgKMYccx
       - SPRING_REDIS_HOST=redis-common
       - SPRING_REDIS_PORT=6379
       - SPRING_REDIS_PASSWORD=XzvAKsOTzjUVjXNGsGlDjPESCehiHufa
-      # 🟢 BREVO SMTP CREDENTIALS
+
+      # 🟢 1. BREVO CREDENTIALS (Primary Dispatch)
       - BREVO_LOGIN_EMAIL=adityakakade.skncoe.comp@gmail.com
-      - BREVO_SMTP_KEY=YOUR_BREVO_SMTP_KEY_HERE # 👈 Replace with your xsmtpsib- key from Brevo dashboard
+      - BREVO_SMTP_KEY='xsmtpsib-YOUR_REAL_BREVO_KEY_HERE'
+
+      # 🟢 2. GMAIL FALLBACK CREDENTIALS (Auto-Fallback)
+      - GMAIL_FALLBACK_USERNAME=your.personal.email@gmail.com
+      - GMAIL_FALLBACK_PASSWORD='abcd efgh ijkl mnop' # Your 16-letter App Password
+
       - GHOST_SHIELD_KEY=gsk_live_8f7b2c9a4e1d5f6e8a0b3c2d1e4f5a6b7c8d9e0f1a2b3c4d5
       - GHOST_GATEWAY_SECRET=gws_live_4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c
       - JWT_SECRET=jwt_live_9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9
     depends_on:
       - postgres
       - redis-common
-
   # ========================================================
   # 💬 6. P2P CHAT SERVICE (STOMP WEBSOCKETS)
   # ========================================================
@@ -125,7 +133,8 @@ services:
       - ghostshield-net
     environment:
       - PORT=8096
-      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/ghostshield
+      # 🟢 Mapped to isolated p2p_db (No Redis configuration required!)
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/p2p_db
       - SPRING_DATASOURCE_USERNAME=postgres
       - SPRING_DATASOURCE_PASSWORD=FhxTOcsGBKiapugVyTEJetWlqgKMYccx
       - USER_CATALOG_SERVICE_NAME=USER-CATALOG-SERVICE
@@ -148,7 +157,8 @@ services:
       - ghostshield-net
     environment:
       - PORT=8092
-      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/ghostshield
+      # 🟢 Mapped to isolated social_db
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/social_db
       - SPRING_DATASOURCE_USERNAME=postgres
       - SPRING_DATASOURCE_PASSWORD=FhxTOcsGBKiapugVyTEJetWlqgKMYccx
       - SPRING_REDIS_HOST=redis-common
@@ -178,7 +188,8 @@ services:
       - ghostshield-net
     environment:
       - PORT=8081
-      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/ghostshield
+      # 🟢 Mapped to isolated blob_db
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/blob_db
       - SPRING_DATASOURCE_USERNAME=postgres
       - SPRING_DATASOURCE_PASSWORD=FhxTOcsGBKiapugVyTEJetWlqgKMYccx
       - SPRING_REDIS_HOST=redis-common
@@ -217,7 +228,7 @@ services:
       - GHOST_SHIELD_KEY=gsk_live_8f7b2c9a4e1d5f6e8a0b3c2d1e4f5a6b7c8d9e0f1a2b3c4d5
       - GHOST_GATEWAY_SECRET=gws_live_4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c
       - JWT_SECRET=jwt_live_9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9
-      - OPENAI_API_KEY=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
+      - AI_MODERATION_URL=http://ai-moderation-service:5000/api/moderate
     depends_on:
       - redis-airdrop
       - user-catalog
