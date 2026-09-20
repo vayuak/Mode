@@ -1,9 +1,5 @@
 server:
-  port: ${PORT}
-  compression:
-    enabled: true
-    mime-types: application/json,text/html,text/xml,text/plain
-    min-response-size: 1024
+  port: ${PORT:8080}
 
 spring:
   application:
@@ -11,8 +7,8 @@ spring:
 
   data:
     redis:
-      host: ${SPRING_REDIS_HOST}
-      port: ${SPRING_REDIS_PORT}
+      host: ${SPRING_REDIS_HOST:redis-common}
+      port: ${SPRING_REDIS_PORT:6379}
       password: ${SPRING_REDIS_PASSWORD}
       timeout: 3000ms
 
@@ -25,7 +21,13 @@ spring:
         cors-configurations:
           '[/**]':
             allowedOriginPatterns: "*"
-            allowedMethods: "*"
+            allowedMethods:
+              - GET
+              - POST
+              - PUT
+              - DELETE
+              - OPTIONS
+              - PATCH
             allowedHeaders: "*"
             allowCredentials: true
             exposedHeaders:
