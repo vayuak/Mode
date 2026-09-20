@@ -89,6 +89,7 @@ services:
       - JWT_SECRET=jwt_live_9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9
     depends_on:
       - redis-common
+
   # ========================================================
   # 👤 USER CATALOG SERVICE
   # ========================================================
@@ -109,7 +110,7 @@ services:
 
       # 🟢 GMAIL CREDENTIALS
       - GMAIL_USERNAME=your.personal.email@gmail.com
-      - GMAIL_APP_PASSWORD='abcdefghijklmnop' # 16-letter App Password (NO SPACES!)
+      - GMAIL_APP_PASSWORD='abcdefghijklmnop'
 
       - GHOST_SHIELD_KEY=gsk_live_8f7b2c9a4e1d5f6e8a0b3c2d1e4f5a6b7c8d9e0f1a2b3c4d5
       - GHOST_GATEWAY_SECRET=gws_live_4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c
@@ -117,6 +118,7 @@ services:
     depends_on:
       - postgres
       - redis-common
+
   # ========================================================
   # 💬 6. P2P CHAT SERVICE (STOMP WEBSOCKETS)
   # ========================================================
@@ -132,14 +134,11 @@ services:
       - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/p2p_db
       - SPRING_DATASOURCE_USERNAME=postgres
       - SPRING_DATASOURCE_PASSWORD=FhxTOcsGBKiapugVyTEJetWlqgKMYccx
-      - USER_CATALOG_SERVICE_NAME=USER-CATALOG-SERVICE
-      - USER_CATALOG_URL=http://user-catalog:8088
       - GHOST_SHIELD_KEY=gsk_live_8f7b2c9a4e1d5f6e8a0b3c2d1e4f5a6b7c8d9e0f1a2b3c4d5
       - GHOST_GATEWAY_SECRET=gws_live_4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c
       - GHOST_SHIELD_JWT_SECRET=jwt_live_9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9
     depends_on:
       - postgres
-      - user-catalog
 
   # ========================================================
   # 🏘️ 7. SOCIAL / COMMUNITIES SERVICE
@@ -190,8 +189,6 @@ services:
       - SPRING_REDIS_HOST=redis-common
       - SPRING_REDIS_PORT=6379
       - SPRING_REDIS_PASSWORD=XzvAKsOTzjUVjXNGsGlDjPESCehiHufa
-      - USER_CATALOG_SERVICE_NAME=USER-CATALOG-SERVICE
-      - USER_CATALOG_URL=http://user-catalog:8088
       - GHOST_SHIELD_KEY=gsk_live_8f7b2c9a4e1d5f6e8a0b3c2d1e4f5a6b7c8d9e0f1a2b3c4d5
       - GHOST_GATEWAY_SECRET=gws_live_4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c
       - JWT_SECRET=jwt_live_9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9
@@ -215,11 +212,9 @@ services:
       - SPRING_REDIS_HOST=redis-airdrop
       - SPRING_REDIS_PORT=6379
       - SPRING_REDIS_PASSWORD=hYsnITLYlyoeCwJhJGTDtaShpkjfETQK
-      - AIRDROP_REDIS_HOST=redis-airdrop
-      - AIRDROP_REDIS_PORT=6379
-      - AIRDROP_REDIS_PASSWORD=hYsnITLYlyoeCwJhJGTDtaShpkjfETQK
-      - USER_CATALOG_SERVICE_NAME=USER-CATALOG-SERVICE
-      - USER_SERVICE_URL=http://user-catalog:8088
+      # 🟢 FIXED: Required for UserCatalogClient
+      - USER_CATALOG_SERVICE_NAME=user-catalog
+      - USER_CATALOG_SERVICE_URL=http://user-catalog:8088
       - GHOST_SHIELD_KEY=gsk_live_8f7b2c9a4e1d5f6e8a0b3c2d1e4f5a6b7c8d9e0f1a2b3c4d5
       - GHOST_GATEWAY_SECRET=gws_live_4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c
       - JWT_SECRET=jwt_live_9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9
