@@ -50,10 +50,14 @@ public class JwtAuthenticationFilter extends AbstractGatewayFilterFactory<JwtAut
                         .build()
                         .parseSignedClaims(token)
                         .getPayload();
-
-                String identity = claims.get("userId") != null ?
-                        claims.get("userId").toString() :
-                        claims.getSubject();
+                String identity;
+                if (claims.get("username") != null && !claims.get("username").toString().trim().isEmpty()) {
+                    identity = claims.get("username").toString().trim().toLowerCase();
+                } else if (claims.getSubject() != null && !claims.getSubject().trim().isEmpty() && !claims.getSubject().startsWith("user_")) {
+                    identity = claims.getSubject().trim().toLowerCase();
+                } else {
+                    identity = claims.get("userId") != null ? claims.get("userId").toString() : claims.getSubject();
+                }
 
                 log.info("Gateway cryptographic signature match. Injecting X-User-Id: {} into outbound context.", identity);
 
