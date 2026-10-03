@@ -71,7 +71,9 @@ spring:
           predicates:
             - Path=/v1/vault/**
           filters:
-            - RewritePath=/v1/vault/(?<segment>.*), /api/vault/${segment}
+            # 🟢 FIX: Safely strips /v1/vault and prepends /api/vault without regex variables
+            - StripPrefix=2
+            - PrefixPath=/api/vault
             - SetRequestHeader=X-Ghost-Shield-Key, ${GHOST_SHIELD_KEY}
             - SetRequestHeader=X-Gateway-Secret, ${GATEWAY_SECRET}
 
@@ -99,7 +101,9 @@ spring:
             - Path=/v1/social/**
           filters:
             - JwtAuthenticationFilter
-            - RewritePath=/v1/social/(?<segment>.*), /api/social/${segment}
+            # 🟢 FIX: Safely strips /v1/social and prepends /api/social without regex variables
+            - StripPrefix=2
+            - PrefixPath=/api/social
             - SetRequestHeader=X-Ghost-Shield-Key, ${GHOST_SHIELD_KEY}
             - SetRequestHeader=X-Gateway-Secret, ${GATEWAY_SECRET}
 
