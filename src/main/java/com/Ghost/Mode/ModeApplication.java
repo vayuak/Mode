@@ -30,14 +30,14 @@ public class ModeApplication {
         };
     }
 
+    // 🟢 FIXED: Permit all exchanges globally so Gateway YAML filters handle JWT authorization!
     @Bean
     public SecurityWebFilterChain springSecurityFilterChain(ServerHttpSecurity http) {
         http
                 .csrf(ServerHttpSecurity.CsrfSpec::disable)
                 .authorizeExchange(exchanges -> exchanges
-                        .pathMatchers("/.well-known/**").permitAll()
-                        .pathMatchers("/v1/auth/**").permitAll()
-                        .anyExchange().authenticated()
+                        .pathMatchers("/.well-known/**").permitAll() // Serves assetlinks.json publicly
+                        .anyExchange().permitAll() // Hands control back to your application.yml JwtAuthenticationFilter
                 );
         return http.build();
     }
