@@ -14,6 +14,9 @@ spring:
 
   cloud:
     gateway:
+      httpclient:
+        websocket:
+          max-frame-payload-length: 5242880
       default-filters:
         - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_UNIQUE
       globalcors:
@@ -71,7 +74,6 @@ spring:
           predicates:
             - Path=/v1/vault/**
           filters:
-            # 🟢 FIX: Safely strips /v1/vault and prepends /api/vault without regex variables
             - StripPrefix=2
             - PrefixPath=/api/vault
             - SetRequestHeader=X-Ghost-Shield-Key, ${GHOST_SHIELD_KEY}
@@ -101,7 +103,6 @@ spring:
             - Path=/v1/social/**
           filters:
             - JwtAuthenticationFilter
-            # 🟢 FIX: Safely strips /v1/social and prepends /api/social without regex variables
             - StripPrefix=2
             - PrefixPath=/api/social
             - SetRequestHeader=X-Ghost-Shield-Key, ${GHOST_SHIELD_KEY}
