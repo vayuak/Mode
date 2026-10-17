@@ -3,9 +3,9 @@
     "relation": ["delegate_permission/common.handle_all_urls"],
     "target": {
       "namespace": "android_app",
-      "package_name": "com.azymarch.glider",
+      "package_name": "com.azymarch.ViaCustos",
       "sha256_cert_fingerprints": [
-        "C6:68:38:E7:D0:6E:4D:10:60:4E:12:2A:F2:29:1E:9B:43:CC:6C:F4:82:78:61:A7:78:A9:B0:08:88:E5:C3:39"
+        "68:18:7D:B8:3E:16:F2:CA:E0:3F:45:CD:8A:67:8B:87:1D:97:27:B6:47:32:63:94:D2:96:80:66:1E:DD:41:BC"
       ]
     }
   }
