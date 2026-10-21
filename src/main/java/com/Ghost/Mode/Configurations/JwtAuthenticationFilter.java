@@ -65,23 +65,15 @@ public class JwtAuthenticationFilter extends AbstractGatewayFilterFactory<JwtAut
                 final String cleanIdentity = identity;
                 return reactiveRedisTemplate.hasKey("banned:" + cleanIdentity)
                         .flatMap(isBanned -> {
-
-                            // If the user is banned...
                             if (Boolean.TRUE.equals(isBanned)) {
                                 HttpMethod method = exchange.getRequest().getMethod();
 
-                                // ...and they try to POST, PUT, DELETE, or PATCH (Write actions)
                                 if (method != null && (method.matches("POST") || method.matches("PUT") || method.matches("DELETE") || method.matches("PATCH"))) {
-
                                     log.error("⛔ [SHADOWBAN MUTE] Banned user @{} attempted a write action ({}). Dropped with 403 Forbidden.", cleanIdentity, method);
-
-                                    // 403 Forbidden means "You are authenticated, but you are not allowed to do this."
                                     return onError(exchange, HttpStatus.FORBIDDEN);
                                 }
-                                // If it's just a GET request (reading the feed), we let it pass!
                             }
 
-                            // Inject the validated User-Id header and pass it to the Microservices
                             ServerHttpRequest mutatedRequest = exchange.getRequest().mutate()
                                     .header("X-User-Id", cleanIdentity)
                                     .build();
