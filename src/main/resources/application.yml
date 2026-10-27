@@ -1,5 +1,6 @@
 server:
   port: ${PORT:8080}
+  forward-headers-strategy: framework
 
 spring:
   application:
@@ -15,35 +16,30 @@ spring:
   cloud:
     gateway:
       httpclient:
+        connect-timeout: 5000
+        response-timeout: 60s
         websocket:
           max-frame-payload-length: 5242880
       default-filters:
+        - RemoveRequestHeader=X-User-Id
+        - RemoveRequestHeader=X-Is-Premium
         - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_UNIQUE
       globalcors:
         add-to-simple-url-handler-mapping: true
         cors-configurations:
           '[/**]':
-            allowedOriginPatterns: "*"
-            allowedMethods:
-              - GET
-              - POST
-              - PUT
-              - DELETE
-              - OPTIONS
-              - PATCH
+            allowedOrigins:
+              - "https://www.warnpack.com"
+              - "https://warnpack.com"
+            allowedMethods: [GET, POST, PUT, DELETE, OPTIONS, PATCH]
             allowedHeaders: "*"
             allowCredentials: true
-            exposedHeaders:
-              - Authorization
-              - X-Gateway-Secret
-              - X-Ghost-Shield-Key
-              - Content-Length
-              - Content-Type
       routes:
-        - id: user-catalog-route
+        # ---- Auth: public endpoints (strict rate limit: brute-force / OTP-spam protection)
+        - id: auth-public
           uri: ${USER_CATALOG_URL}
           predicates:
-            - Path=/v1/auth/**
+            - Path=/v1/auth/login,/v1/auth/register,/v1/auth/verify-otp,/v1/auth/check-username,/v1/auth/forgot-password,/v1/auth/reset-password
           filters:
             - StripPrefix=2
             - PrefixPath=/api/users
@@ -51,10 +47,28 @@ spring:
             - SetRequestHeader=X-Gateway-Secret, ${GATEWAY_SECRET}
             - name: RequestRateLimiter
               args:
-                redis-rate-limiter.replenishRate: 2
-                redis-rate-limiter.burstCapacity: 5
+                redis-rate-limiter.replenishRate: 3
+                redis-rate-limiter.burstCapacity: 12
                 key-resolver: "#{@ipKeyResolver}"
 
+        # ---- Auth: logged-in endpoints (me, logout, E2EE public keys, device token)
+        - id: auth-private
+          uri: ${USER_CATALOG_URL}
+          predicates:
+            - Path=/v1/auth/me,/v1/auth/logout,/v1/auth/keys,/v1/auth/keys/**,/v1/auth/profile,/v1/auth/profile/**
+          filters:
+            - JwtAuthenticationFilter
+            - StripPrefix=2
+            - PrefixPath=/api/users
+            - SetRequestHeader=X-Ghost-Shield-Key, ${GHOST_SHIELD_KEY}
+            - SetRequestHeader=X-Gateway-Secret, ${GATEWAY_SECRET}
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 20
+                redis-rate-limiter.burstCapacity: 60
+                key-resolver: "#{@ipKeyResolver}"
+
+        # ---- AirDrops
         - id: campfire-radar-route
           uri: ${CAMPFIRE_SERVICE_URL}
           predicates:
@@ -65,20 +79,23 @@ spring:
             - SetRequestHeader=X-Gateway-Secret, ${GATEWAY_SECRET}
             - name: RequestRateLimiter
               args:
-                redis-rate-limiter.replenishRate: 5
-                redis-rate-limiter.burstCapacity: 10
+                redis-rate-limiter.replenishRate: 20
+                redis-rate-limiter.burstCapacity: 60
                 key-resolver: "#{@ipKeyResolver}"
 
-        - id: media-vault-route
+        # ---- Media: READ ONLY from the internet. Uploads/deletes happen service-to-service inside docker.
+        - id: media-vault-read
           uri: ${BLOB_URL}
           predicates:
-            - Path=/v1/vault/**
+            - Path=/v1/vault/stream/**
+            - Method=GET,HEAD
           filters:
             - StripPrefix=2
             - PrefixPath=/api/vault
             - SetRequestHeader=X-Ghost-Shield-Key, ${GHOST_SHIELD_KEY}
             - SetRequestHeader=X-Gateway-Secret, ${GATEWAY_SECRET}
 
+        # ---- Chat WebSocket (STOMP validates the JWT on CONNECT)
         - id: social-websocket-route
           uri: ${P2P_URL}
           predicates:
@@ -88,15 +105,17 @@ spring:
             - SetRequestHeader=X-Ghost-Shield-Key, ${GHOST_SHIELD_KEY}
             - SetRequestHeader=X-Gateway-Secret, ${GATEWAY_SECRET}
 
+        # ---- Offline message sync only (wake-peer is dropped: the chat server already sends the push itself)
         - id: p2p-http-route
           uri: ${P2P_HTTP_URL}
           predicates:
-            - Path=/v1/p2p/**
+            - Path=/v1/p2p/sync,/v1/p2p/sync/ack
           filters:
             - JwtAuthenticationFilter
             - SetRequestHeader=X-Ghost-Shield-Key, ${GHOST_SHIELD_KEY}
             - SetRequestHeader=X-Gateway-Secret, ${GATEWAY_SECRET}
 
+        # ---- Posts / comments / profiles / moderation / billing
         - id: social-service-route
           uri: ${SOCIAL_SERVICE_URL}
           predicates:
@@ -107,6 +126,11 @@ spring:
             - PrefixPath=/api/social
             - SetRequestHeader=X-Ghost-Shield-Key, ${GHOST_SHIELD_KEY}
             - SetRequestHeader=X-Gateway-Secret, ${GATEWAY_SECRET}
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 30
+                redis-rate-limiter.burstCapacity: 90
+                key-resolver: "#{@ipKeyResolver}"
 
 logging:
   level:

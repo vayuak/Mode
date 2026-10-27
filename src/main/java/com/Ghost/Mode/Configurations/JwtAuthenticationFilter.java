@@ -63,26 +63,31 @@ public class JwtAuthenticationFilter extends AbstractGatewayFilterFactory<JwtAut
                 }
 
                 final String cleanIdentity = identity;
+                final boolean premium = Boolean.TRUE.equals(claims.get("isPremium", Boolean.class));
+
                 return reactiveRedisTemplate.hasKey("banned:" + cleanIdentity)
                         .flatMap(isBanned -> {
                             if (Boolean.TRUE.equals(isBanned)) {
                                 HttpMethod method = exchange.getRequest().getMethod();
 
                                 if (method != null && (method.matches("POST") || method.matches("PUT") || method.matches("DELETE") || method.matches("PATCH"))) {
-                                    log.error("⛔ [SHADOWBAN MUTE] Banned user @{} attempted a write action ({}). Dropped with 403 Forbidden.", cleanIdentity, method);
+                                    log.warn("[SHADOWBAN] banned user @{} blocked on write ({})", cleanIdentity, method);
                                     return onError(exchange, HttpStatus.FORBIDDEN);
                                 }
                             }
 
                             ServerHttpRequest mutatedRequest = exchange.getRequest().mutate()
-                                    .header("X-User-Id", cleanIdentity)
+                                    .headers(h -> {
+                                        h.set("X-User-Id", cleanIdentity);
+                                        h.set("X-Is-Premium", String.valueOf(premium));
+                                    })
                                     .build();
 
                             return chain.filter(exchange.mutate().request(mutatedRequest).build());
                         });
 
             } catch (Exception e) {
-                log.error("Gateway guard validation failed: {}", e.getMessage());
+                log.warn("Gateway guard validation failed: {}", e.getMessage());
                 return onError(exchange, HttpStatus.UNAUTHORIZED);
             }
         };
