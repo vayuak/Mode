@@ -1,0 +1,258 @@
+
+
+name: warnpack
+
+x-logging: &logging
+  driver: json-file
+  options: { max-size: "10m", max-file: "3" }
+
+x-java: &java
+  restart: unless-stopped
+  networks: [net]
+  logging: *logging
+
+networks:
+  net:
+
+volumes:
+  pg_data:
+  redis_common_data:
+  redis_airdrop_data:
+  caddy_data:
+  caddy_config:
+
+services:
+  # ---------------------------------------------------------------- edge
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    networks: [net]
+    logging: *logging
+    ports: ["80:80", "443:443", "443:443/udp"]
+    environment:
+      API_DOMAIN: ${API_DOMAIN}
+      ACME_EMAIL: ${ACME_EMAIL}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    mem_limit: 96m
+    depends_on: [api-gateway]
+
+  # ---------------------------------------------------------------- data
+  postgres:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    networks: [net]
+    logging: *logging
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: postgres
+    command: ["postgres", "-c", "shared_buffers=128MB", "-c", "max_connections=120", "-c", "effective_cache_size=512MB"]
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./init-dbs.sql:/docker-entrypoint-initdb.d/init-dbs.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    mem_limit: 512m
+
+  # Auth, rate limiting, OTP codes, bans, media cache.
+  # volatile-lru: when full, Redis only evicts keys that have an expiry (media cache, rate-limit counters), never permanent keys.
+  redis-common:
+    image: redis:7-alpine
+    restart: unless-stopped
+    networks: [net]
+    logging: *logging
+    command: ["redis-server", "--requirepass", "${REDIS_COMMON_PASSWORD}", "--maxmemory", "192mb", "--maxmemory-policy", "volatile-lru", "--appendonly", "yes"]
+    volumes: [redis_common_data:/data]
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a $$REDIS_PW ping | grep PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    environment:
+      REDIS_PW: ${REDIS_COMMON_PASSWORD}
+    mem_limit: 256m
+
+  # AirDrops only (short-lived geo data)
+  redis-airdrop:
+    image: redis:7-alpine
+    restart: unless-stopped
+    networks: [net]
+    logging: *logging
+    command: ["redis-server", "--requirepass", "${REDIS_AIRDROP_PASSWORD}", "--maxmemory", "64mb", "--maxmemory-policy", "allkeys-lru"]
+    volumes: [redis_airdrop_data:/data]
+    mem_limit: 96m
+
+  # ---------------------------------------------------------------- services
+  api-gateway:
+    <<: *java
+    build: ../backend/Mode
+    environment: &gw-env
+      PORT: "8080"
+      JAVA_OPTS: "-Xms64m -Xmx192m -XX:+UseSerialGC"
+      SPRING_REDIS_HOST: redis-common
+      SPRING_REDIS_PORT: "6379"
+      SPRING_REDIS_PASSWORD: ${REDIS_COMMON_PASSWORD}
+      USER_CATALOG_URL: http://user-catalog:8088
+      SOCIAL_SERVICE_URL: http://social-service:8092
+      BLOB_URL: http://blob-service:8081
+      CAMPFIRE_SERVICE_URL: http://spherical-service:8097
+      P2P_HTTP_URL: http://p2p-service:8096
+      P2P_URL: ws://p2p-service:8096
+      GHOST_SHIELD_KEY: ${GHOST_SHIELD_KEY}
+      GATEWAY_SECRET: ${GATEWAY_SECRET}
+      JWT_SECRET: ${JWT_SECRET}
+    mem_limit: 384m
+    depends_on:
+      redis-common: { condition: service_healthy }
+
+  user-catalog:
+    <<: *java
+    build: ../backend/UserCatalog
+    environment:
+      PORT: "8088"
+      JAVA_OPTS: "-Xms64m -Xmx256m -XX:+UseSerialGC"
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/user_catalog_db
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+      SPRING_REDIS_HOST: redis-common
+      SPRING_REDIS_PORT: "6379"
+      SPRING_REDIS_PASSWORD: ${REDIS_COMMON_PASSWORD}
+      GHOST_SHIELD_KEY: ${GHOST_SHIELD_KEY}
+      GHOST_GATEWAY_SECRET: ${GATEWAY_SECRET}
+      JWT_SECRET: ${JWT_SECRET}
+      # 20 days. (Your default was 24 h = users silently logged out daily. Must stay under 2,147,483,647 - it is a Java int.)
+      GHOST_SHIELD_JWT_EXPIRATION: "1728000000"
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT}
+      SMTP_USERNAME: ${SMTP_USERNAME}
+      SMTP_PASSWORD: ${SMTP_PASSWORD}
+      MAIL_FROM: ${MAIL_FROM}
+      SPRING_JPA_SHOW_SQL: "false"
+    mem_limit: 448m
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis-common: { condition: service_healthy }
+
+  p2p-service:
+    <<: *java
+    build: ../backend/P2P-SERVICE
+    environment:
+      PORT: "8096"
+      JAVA_OPTS: "-Xms64m -Xmx224m -XX:+UseSerialGC"
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/p2p_db
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+      GHOST_SHIELD_KEY: ${GHOST_SHIELD_KEY}
+      GHOST_GATEWAY_SECRET: ${GATEWAY_SECRET}
+      GHOST_SHIELD_JWT_SECRET: ${JWT_SECRET}
+      # These two were MISSING in your original compose; the service cannot start without them.
+      USER_CATALOG_SERVICE_NAME: user-catalog
+      USER_CATALOG_URL: http://user-catalog:8088
+      GOOGLE_APPLICATION_CREDENTIALS: /secrets/firebase-key.json
+      LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_MESSAGING: WARN
+      LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_WEB_SOCKET: WARN
+    volumes: ["./secrets:/secrets:ro"]
+    mem_limit: 400m
+    depends_on:
+      postgres: { condition: service_healthy }
+      user-catalog: { condition: service_started }
+
+  social-service:
+    <<: *java
+    build: ../backend/Communities
+    environment:
+      PORT: "8092"
+      JAVA_OPTS: "-Xms64m -Xmx256m -XX:+UseSerialGC"
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/social_db
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+      SPRING_REDIS_HOST: redis-common
+      SPRING_REDIS_PORT: "6379"
+      SPRING_REDIS_PASSWORD: ${REDIS_COMMON_PASSWORD}
+      USER_CATALOG_SERVICE_NAME: USER-CATALOG-SERVICE
+      USER_CATALOG_SERVICE_URL: http://user-catalog:8088
+      BLOB_SERVICE_NAME: BLOB
+      BLOB_SERVICE_URL: http://blob-service:8081
+      P2P_URL: ws://p2p-service:8096
+      SPRING_JPA_SHOW_SQL: "false"
+      SPRING_JPA_PROPERTIES_HIBERNATE_FORMAT_SQL: "false"
+      LOGGING_LEVEL_COM_SOCIALSERVICE_COMMUNITIES: WARN   # the service logs one INFO line per request otherwise
+      GHOST_SHIELD_KEY: ${GHOST_SHIELD_KEY}
+      GHOST_GATEWAY_SECRET: ${GATEWAY_SECRET}
+      JWT_SECRET: ${JWT_SECRET}
+    mem_limit: 448m
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis-common: { condition: service_healthy }
+      user-catalog: { condition: service_started }
+
+  blob-service:
+    <<: *java
+    build: ../backend/Blob
+    environment:
+      PORT: "8081"
+      # Blob holds whole files in memory while encrypting/decrypting, so give it the most heap.
+      JAVA_OPTS: "-Xms64m -Xmx320m -XX:+UseSerialGC"
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/blob_db
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+      SPRING_REDIS_HOST: redis-common
+      SPRING_REDIS_PORT: "6379"
+      SPRING_REDIS_PASSWORD: ${REDIS_COMMON_PASSWORD}
+      GHOST_SHIELD_KEY: ${GHOST_SHIELD_KEY}
+      GHOST_GATEWAY_SECRET: ${GATEWAY_SECRET}
+      JWT_SECRET: ${JWT_SECRET}
+      SPRING_JPA_SHOW_SQL: "false"
+    mem_limit: 512m
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis-common: { condition: service_healthy }
+
+  spherical-service:
+    <<: *java
+    build: ../backend/AirDrop
+    environment:
+      PORT: "8097"
+      JAVA_OPTS: "-Xms64m -Xmx192m -XX:+UseSerialGC"
+      SPRING_REDIS_HOST: redis-airdrop
+      SPRING_REDIS_PORT: "6379"
+      SPRING_REDIS_PASSWORD: ${REDIS_AIRDROP_PASSWORD}
+      USER_CATALOG_SERVICE_NAME: user-catalog
+      USER_CATALOG_SERVICE_URL: http://user-catalog:8088
+      GHOST_SHIELD_KEY: ${GHOST_SHIELD_KEY}
+      GHOST_GATEWAY_SECRET: ${GATEWAY_SECRET}
+      JWT_SECRET: ${JWT_SECRET}
+      OPENAI_API_KEY: "not-used"
+      GOOGLE_APPLICATION_CREDENTIALS: /secrets/firebase-key.json
+    volumes: ["./secrets:/secrets:ro"]
+    mem_limit: 384m
+    depends_on:
+      redis-airdrop: { condition: service_started }
+      user-catalog: { condition: service_started }
+
+# 1. Web Domain & SSL
+  API_DOMAIN=api.warnpack.com
+  ACME_EMAIL=your-email@example.com
+  
+  # 2. Database Passwords (Generate strong random passwords for these)
+  POSTGRES_PASSWORD=your_secure_postgres_password
+  REDIS_COMMON_PASSWORD=your_secure_redis_common_password
+  REDIS_AIRDROP_PASSWORD=your_secure_redis_airdrop_password
+  
+  # 3. Security & Cryptography Keys (Must match exactly across all microservices)
+  GHOST_SHIELD_KEY=your_ghost_shield_key
+  GATEWAY_SECRET=your_gateway_secret
+  JWT_SECRET=your_jwt_secret
+  
+  # 4. Email/SMTP Server (For sending OTPs and notifications)
+  SMTP_HOST=smtp.your-email-provider.com
+  SMTP_PORT=587
+  SMTP_USERNAME=your_smtp_username
+  SMTP_PASSWORD=your_smtp_password
+  MAIL_FROM=noreply@warnpack.com
